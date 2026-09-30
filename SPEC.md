@@ -18,8 +18,8 @@ Response、HeaderMap、Uri、Method、StatusCode、Body 等）与 HTTP/1.1、HTT
 - **分层**：`neton.http.h3` 的协议核心（帧、QPACK、流状态机、薄 QUIC 接口上的连接层）在 commonMain，只依赖 `com.netonstream:http`；接到
   `com.netonstream:quic` 的适配在 nativeMain。`http3-interop` 为互通对端与脚本，不发布。
 - **与 `http` 的共享面**：HPACK / QPACK 共用的霍夫曼编解码经 `neton.http.internal.HuffmanCodec`（`@InternalHttpApi`，须显式启用）。
-- **构建**：`settings.gradle.kts` 以 `includeBuild("../http")` 取 `com.netonstream:http`（发布之前）；`com.netonstream:quic` / `quic-testkit` 取自
-  mavenLocal。
+- **构建**：`com.netonstream:http:0.1.0` 取自 Maven Central；`com.netonstream:quic` / `quic-testkit` 在 quic 发布之前以
+  `includeBuild("../quic")` 取自同级仓库（2026-09-30 起不再用 mavenLocal）。
 
 ## 2. HTTP/3（复刻 `h3` 0.0.8，在 `neton.quic` 上）
 

@@ -9,8 +9,8 @@ the reference (marked ⚖️) and the implementation record: [SPEC.md](SPEC.md).
 
 ## Status
 
-Accepted for v1. Not published yet; built against `com.netonstream:http` (sibling repo, `includeBuild("../http")`)
-and `com.netonstream:quic` / `quic-testkit` 0.1.0-SNAPSHOT from `mavenLocal`. Kotlin 2.4.0, native targets shared by
+Accepted for v1. Not published yet; built against the published `com.netonstream:http:0.1.0`
+and `com.netonstream:quic` / `quic-testkit` from the sibling repo (`includeBuild("../quic")`) until quic is published. Kotlin 2.4.0, native targets shared by
 `http` and `quic` (no 32-bit Android).
 
 - h3's tests ported (frames, QPACK static + literals with a zero-capacity dynamic table, connection and request tests),
