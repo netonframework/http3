@@ -519,7 +519,7 @@ Response、HeaderMap、Uri、Method、StatusCode、Body 等）与 HTTP/1.1、HTT
 
 **发布准备（2026-10-08）**
 - 依赖改为 http 0.1.1、quic 0.1.0、quic-testkit 0.1.0（测试）；版本 0.1.0；POM、签名、javadoc jar 与本地暂存仓库，与 http 相同（`http3-interop`
-  不发布）。去掉 mingwX64：quic 0.1.0 不再提供该目标（io 在 Windows 上没有 UDP）。quic 0.1.0 发布到 Maven Central 之前仍以 `includeBuild("../quic")`
+  不发布）。（mingwX64 曾因 io 在 Windows 上没有 UDP 而去掉；io 补上 Windows UDP（io SPEC §29.7）后恢复，CI 在 Windows 的 IOCP 与 WSAPoll 上运行全量测试。）quic 0.1.0 发布到 Maven Central 之前仍以 `includeBuild("../quic")`
   取得，发布后去掉。macOS arm64 测试 504 个，全部通过。
 - 服务端不关闭请求流会占住 QUIC 流额度（约 100 个请求后连接停顿，§4 阶段 D 互通时发现）：Kotlin 没有 Rust 的自动 drop，`RequestStream.close()`
   （或 `use {}`）是其对应物，属用法要求而非协议缺陷；KDoc、README 示例与测试已写明，本版不改。

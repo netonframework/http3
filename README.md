@@ -11,7 +11,7 @@ the reference (marked ⚖️) and the implementation record: [SPEC.md](SPEC.md).
 
 Accepted for v1; version 0.1.0, not yet on Maven Central. Built against `com.netonstream:http:0.1.1` and
 `com.netonstream:quic:0.1.0` / `quic-testkit:0.1.0`, taken from the sibling repo (`includeBuild("../quic")`) until quic 0.1.0
-is on Maven Central. Kotlin 2.4.0, native targets shared by `http` and `quic` (no 32-bit Android, no Windows).
+is on Maven Central. Kotlin 2.4.0, native targets shared by `http` and `quic` (no 32-bit Android).
 
 - h3's tests ported (frames, QPACK static + literals with a zero-capacity dynamic table, connection and request tests),
   run on an in-memory QUIC double, on neton.quic with the TLS test double, and on neton.quic with real TLS 1.3.
