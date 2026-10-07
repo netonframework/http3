@@ -1,18 +1,10 @@
 name: CI
 
 # The whole suite on macOS (kqueue), Linux x64 (epoll) and Windows (IOCP, WSAPoll). Any branch, PRs, or by hand.
-#
-# Until quic 0.1.0 and an io release with UDP on Windows are on Maven Central, both come from their repositories:
-# quic through settings.gradle.kts' includeBuild("../quic") (so this repository is checked out next to it), io through
-# --include-build. Drop both checkouts once they are released.
 on:
   push:
   pull_request:
   workflow_dispatch:
-
-env:
-  QUIC_REF: main
-  IO_REF: main
 
 jobs:
   test:
@@ -31,18 +23,6 @@ jobs:
       NETON_IO_DRIVER: ${{ matrix.driver }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: http3
-      - uses: actions/checkout@v4
-        with:
-          repository: netonframework/quic
-          ref: ${{ env.QUIC_REF }}
-          path: quic
-      - uses: actions/checkout@v4
-        with:
-          repository: netonframework/io
-          ref: ${{ env.IO_REF }}
-          path: io-src
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -55,8 +35,7 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
       - name: Test
         shell: bash
-        working-directory: http3
-        run: ./gradlew --include-build ../io-src :http3:${{ matrix.task }} --no-daemon --stacktrace --continue
+        run: ./gradlew :http3:${{ matrix.task }} --no-daemon --stacktrace --continue
       - name: Summary
         if: always()
         shell: bash
@@ -64,7 +43,7 @@ jobs:
           python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import glob, re
           tests = fails = 0; failed = []
-          for f in glob.glob('http3/http3/build/test-results/**/*.xml', recursive=True):
+          for f in glob.glob('http3/build/test-results/**/*.xml', recursive=True):
               s = open(f, encoding='utf-8', errors='replace').read()
               m = re.search(r'tests="(\d+)"', s); tests += int(m.group(1)) if m else 0
               for c in re.finditer(r'<testcase name="([^"]+)" classname="([^"]+)"[^>]*>\s*<failure message="([^"]*)"', s):
@@ -77,6 +56,6 @@ jobs:
         with:
           name: test-results-${{ matrix.name }}
           path: |
-            http3/http3/build/test-results/**
-            http3/http3/build/reports/tests/**
+            http3/build/test-results/**
+            http3/build/reports/tests/**
           if-no-files-found: ignore
