@@ -384,6 +384,12 @@ class RequestStream internal constructor(private val inner: RequestStreamInner, 
     fun stopSending(code: Code) = inner.stopSending(code)
 
     /**
+     * ⚖️ Whether the request came in 0-RTT (early data): an attacker can replay it, so a server should act on it only
+     * if it is safe to repeat, and may answer 425 Too Early otherwise (RFC 8470, RFC 9114 §10.9). Not in h3.
+     */
+    fun isEarlyData(): Boolean = inner.recv?.isEarlyData ?: false
+
+    /**
      * Sends the response head (`send_response`); before any [sendData].
      * @throws StreamError [StreamError.HeaderTooBig] beyond the client's SETTINGS_MAX_FIELD_SECTION_SIZE.
      */

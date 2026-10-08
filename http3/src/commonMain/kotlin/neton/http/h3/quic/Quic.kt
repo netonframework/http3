@@ -139,6 +139,12 @@ interface RecvStream {
 
     /** Asks the peer to stop sending with [errorCode] (STOP_SENDING, `stop_sending`); unread data is discarded. */
     fun stopSending(errorCode: Long)
+
+    /**
+     * ⚖️ Whether the peer opened this stream in 0-RTT (quinn `RecvStream::is_0rtt`), so its data may be a replay
+     * (RFC 9001 §9.2). Not in h3's interface; false for transports without 0-RTT.
+     */
+    val isEarlyData: Boolean get() = false
 }
 
 /** A bidirectional stream (`BidiStream`): both sides, which [split] separates. */

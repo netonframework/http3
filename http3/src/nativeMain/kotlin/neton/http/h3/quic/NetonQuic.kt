@@ -168,6 +168,8 @@ class QuicRecvStream(
 ) : RecvStream {
     override val recvId: StreamId = StreamId(stream.id.value)
 
+    override val isEarlyData: Boolean get() = stream.isEarlyData()
+
     /** h3-quinn `poll_data`: the next chunk in order, without copying (`read_chunk(usize::MAX, true)`); null at the end. */
     override suspend fun read(): Bytes? = try {
         stream.readChunk(Int.MAX_VALUE, true)?.bytes

@@ -523,3 +523,19 @@ Response、HeaderMap、Uri、Method、StatusCode、Body 等）与 HTTP/1.1、HTT
   取得，发布后去掉。macOS arm64 测试 504 个，全部通过。
 - 服务端不关闭请求流会占住 QUIC 流额度（约 100 个请求后连接停顿，§4 阶段 D 互通时发现）：Kotlin 没有 Rust 的自动 drop，`RequestStream.close()`
   （或 `use {}`）是其对应物，属用法要求而非协议缺陷；KDoc、README 示例与测试已写明，本版不改。
+
+**0-RTT（2026-10-08）**
+- quic 在真实 TLS 上支持会话恢复与 0-RTT（quic SPEC §11.14）后，HTTP/3 无需改动即可在 0-RTT 连接上工作：客户端以 `Connecting.into0Rtt()`
+  得到连接、在其上建立 HTTP/3 客户端并立即发请求。服务端设置：RFC 9114 §7.2.4.2 要求客户端遵守记住的设置或其默认值；本库客户端用默认值
+  （与参考相同，参考的"0-RTT 保存设置"是 TODO），服务端设置不随会话变化，符合"兼容"的要求。
+- **早期数据的标记** ⚖️：服务端 `RequestStream.isEarlyData()`——请求是否由 0-RTT 送达（可被重放，RFC 9001 §9.2；服务端应只对可重复执行的
+  请求照常处理，否则可答 425 Too Early，RFC 8470、RFC 9114 §10.9）。参考没有。经薄接口 `RecvStream.isEarlyData`（默认 false）取自 quic 的
+  `RecvStream.isEarlyData()`：quinn 的 `is_0rtt` 只表示"应用在握手期间接受了该流"，等握手完成再接受流的服务端（本库服务端的常规写法）永远
+  看不到；quic 另记"对端在 0-RTT 包中打开的流"（quic SPEC §11.18）。
+- **0-RTT 被拒绝**：客户端在 0-RTT 中打开的控制流与请求流随之作废，HTTP/3 客户端不可再用、请求失败；QUIC 连接以 1-RTT 继续。应用在同一
+  QUIC 连接上新建 HTTP/3 客户端重发（与 quinn 的 0-RTT 流须重新打开一致）；注意不要关闭旧的 `SendRequest`——关闭最后一个会按 h3 的规则关闭
+  QUIC 连接。
+- 测试 `ZeroRttTest`（真实 TLS）：第二个连接在 0-RTT 中发出请求、服务端以 `isEarlyData()` 认出、0-RTT 被接受；服务端换用不接受早期数据的
+  配置时 0-RTT 被拒绝、请求失败，新的 HTTP/3 客户端在同一连接上重发成功。服务端延后 200 ms 才接受连接，使回环上的请求一定在握手完成前发出。
+- **依赖**：需要含 0-RTT 与 `isEarlyData` 的 quic（main，未发布；0.1.0 没有）。本地以 `--include-build ../quic` 验证：macOS 506 个全部通过。
+
