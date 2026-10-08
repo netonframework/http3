@@ -12,12 +12,12 @@ kotlin {
     androidNativeArm64(); androidNativeX64()
 
     sourceSets {
-        commonMain.dependencies { api("com.netonstream:http:0.1.2") }
-        nativeMain.dependencies { api("com.netonstream:quic:0.1.0") }
+        commonMain.dependencies { api("com.netonstream:http:0.2.0") }
+        nativeMain.dependencies { api("com.netonstream:quic:0.2.0") }
         commonTest.dependencies { implementation(kotlin("test")) }
         // The TLS test double (MockTls) and the test PKI (TestPki) for the end-to-end tests over neton.quic, on the
         // double and on the real TLS session (SPEC §5 layers 3 and 4). Test-only: no production source set may depend
         // on quic-testkit.
-        nativeTest.dependencies { implementation("com.netonstream:quic-testkit:0.1.0") }
+        nativeTest.dependencies { implementation("com.netonstream:quic-testkit:0.2.0") }
     }
 }
