@@ -3,3 +3,7 @@ build/
 .kotlin/
 local.properties
 http3-interop/h3-peer/target/
+http3-interop/certs/
+http3-interop/logs/
+http3-interop/h3spec
+http3-interop/summary.txt

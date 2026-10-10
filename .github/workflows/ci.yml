@@ -1,6 +1,7 @@
 name: CI
 
-# The whole suite on macOS (kqueue), Linux x64 (epoll) and Windows (IOCP, WSAPoll). Any branch, PRs, or by hand.
+# The whole suite on macOS (kqueue), Linux x64 (epoll) and Windows (IOCP, WSAPoll); h3spec on Linux (epoll, io_uring)
+# and macOS. Any branch, PRs, or by hand.
 on:
   push:
   pull_request:
@@ -59,3 +60,58 @@ jobs:
             http3/build/test-results/**
             http3/build/reports/tests/**
           if-no-files-found: ignore
+
+  h3spec:
+    # h3spec 0.1.13 (pinned by SHA-256) against the HTTP/3 server, every case run (http3-interop/run-h3spec.sh): fails
+    # on any failure, on a skipped case, and unless the server log shows the 0-RTT case was really exercised (h3spec
+    # passes `CRYPTO in 0-RTT` while skipping it when the server does not do 0-RTT).
+    name: h3spec (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux epoll, os: ubuntu-latest, target: LinuxX64, driver: epoll, asset: h3spec-linux-x86_64, sha256: b5f8eddd968cb195d1e3e7698d33fa141d6b2ad56153089d89928ac0fdee28bf }
+          - { name: Linux io_uring, os: ubuntu-latest, target: LinuxX64, driver: iouring, asset: h3spec-linux-x86_64, sha256: b5f8eddd968cb195d1e3e7698d33fa141d6b2ad56153089d89928ac0fdee28bf }
+          - { name: macOS kqueue, os: macos-14, target: MacosArm64, driver: "", asset: h3spec-mac-arm64, sha256: 850ee3317b767db1e5e41cf3b9f034a74feabf52672744920ba41f330b710253 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      NETON_IO_DRIVER: ${{ matrix.driver }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
+      - name: Link the interop server
+        run: ./gradlew :http3-interop:linkH3interopDebugExecutable${{ matrix.target }} --no-daemon --stacktrace
+      - name: Run h3spec
+        working-directory: http3-interop
+        shell: bash
+        run: |
+          curl -sSL -o h3spec "https://github.com/kazu-yamamoto/h3spec/releases/download/v0.1.13/${{ matrix.asset }}"
+          echo "${{ matrix.sha256 }}  h3spec" | shasum -a 256 -c -
+          chmod +x h3spec
+          ./gen-certs.sh > /dev/null
+          t="$(echo "${{ matrix.target }}" | cut -c1 | tr '[:upper:]' '[:lower:]')$(echo "${{ matrix.target }}" | cut -c2-)"
+          ./run-h3spec.sh "$GITHUB_WORKSPACE/http3-interop/build/bin/$t/h3interopDebugExecutable/h3interop.kexe" "$PWD/h3spec" 24940 | tee summary.txt
+          exit ${PIPESTATUS[0]}
+      - name: Summary
+        if: always()
+        run: |
+          { echo "### h3spec (${{ matrix.name }})"; echo '```'; grep -E '^== |examples, ' http3-interop/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h3spec-${{ matrix.name }}
+          path: |
+            http3-interop/logs/**
+            http3-interop/summary.txt
+          if-no-files-found: ignore
+
