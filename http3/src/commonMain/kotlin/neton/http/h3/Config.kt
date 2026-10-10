@@ -57,6 +57,9 @@ class Settings internal constructor(
  * [maxFieldSectionSize] 64 KiB of decoded field section (advertised as SETTINGS_MAX_FIELD_SECTION_SIZE),
  * [maxFieldCount] 100 field lines. The QPACK dynamic table capacity is 0 (SPEC §5; the SETTINGS default, not sent).
  */
+/** Default [Config.requestHeaderTimeoutMillis] (SPEC §4, time limits). */
+const val DEFAULT_REQUEST_HEADER_TIMEOUT_MILLIS: Long = 10_000
+
 class Config {
     /** Sends GREASE: a reserved setting, one reserved stream per connection, one reserved frame per connection. */
     var sendGrease: Boolean = true
@@ -74,6 +77,10 @@ class Config {
     var maxFieldCount: Int = DEFAULT_MAX_FIELD_COUNT
         internal set
 
+    /** Server: the request head must arrive within this long after the request stream was accepted; 0: no limit. */
+    var requestHeaderTimeoutMillis: Long = DEFAULT_REQUEST_HEADER_TIMEOUT_MILLIS
+        internal set
+
     /** Test hook (the reference's `#[cfg(test)] send_settings`): false leaves the local streams unwritten. */
     internal var sendSettings: Boolean = true
 
@@ -85,6 +92,7 @@ class Config {
         it.maxFieldSectionSize = maxFieldSectionSize
         it.maxHeadersFrameSize = maxHeadersFrameSize
         it.maxFieldCount = maxFieldCount
+        it.requestHeaderTimeoutMillis = requestHeaderTimeoutMillis
         it.sendSettings = sendSettings
     }
 

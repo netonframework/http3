@@ -39,7 +39,7 @@ internal class RequestStreamInner(
     val send: SendStream?,
     val recv: RecvStream?,
     val shared: SharedState,
-    private val config: Config,
+    internal val config: Config,
     private var sendGreaseFrame: Boolean,
 ) {
     val id: StreamId get() = send?.sendId ?: recv!!.recvId

@@ -539,3 +539,21 @@ Response、HeaderMap、Uri、Method、StatusCode、Body 等）与 HTTP/1.1、HTT
   配置时 0-RTT 被拒绝、请求失败，新的 HTTP/3 客户端在同一连接上重发成功。服务端延后 200 ms 才接受连接，使回环上的请求一定在握手完成前发出。
 - **依赖**：需要含 0-RTT 与 `isEarlyData` 的 quic（main，未发布；0.1.0 没有）。本地以 `--include-build ../quic` 验证：macOS 506 个全部通过。
 
+**请求头时限 ⚖️（2026-10-11）**
+- 参考没有任何时限：对端打开请求流后迟迟不送完 HEADERS 帧，`RequestResolver.resolveRequest()` 一直等待，占住流额度与解析协程。
+  新增服务端设置 `Builder.requestHeaderTimeout(millis)`（`Config.requestHeaderTimeoutMillis`，默认 `DEFAULT_REQUEST_HEADER_TIMEOUT_MILLIS`
+  = 10 s，0 表示不限），从服务端接受该请求流时起算。到期时以 H3_REQUEST_REJECTED 双向终止该流（STOP_SENDING 与 RESET_STREAM），
+  `resolveRequest()` 抛 `StreamError.Stream(H3_REQUEST_REJECTED)`；只影响这一个请求，连接与后续请求照常（RFC 9114 §4.1.1 允许以
+  H3_REQUEST_REJECTED 拒绝尚未处理的请求，客户端可安全重试）。
+- 测试 `RequestHeaderTimeoutTest`（内存替身与 neton.quic 两种变体）：只发 HEADERS 帧类型字节的流在 200 ms 限时下被拒绝、对端看到
+  STOP_SENDING(H3_REQUEST_REJECTED)，随后的请求正常得到响应；0 时不限；默认值 10 s。测试首次运行即发现 `Config.copy()` 漏复制新字段
+  （设置被忽略、10 s 后才拒绝），已修正。macOS arm64 全量 517 个测试通过。
+- README 中"v1 不支持 0-RTT"一句已过时（0.2.0 起支持），一并改正。
+
+**h3spec 进入 CI（2026-10-11）**
+- `h3spec` 作业：Linux epoll、Linux io_uring、macOS kqueue 三种驱动，各跑 `http3-interop/run-h3spec.sh`；判定为退出码 0、输出含
+  "0 failures"、不含 "not possible"/"skipping"，且服务端日志出现 "in 0-RTT"（0-RTT 用例确实以早期数据送达，而不是被跳过）。首次运行
+  （run 38070157471）三项全部通过。
+- 二进制按 SHA-256 固定。h3spec v0.1.13 Linux 资产当前的 SHA-256 为 b5f8eddd…28bf，与上文 2026-09 记录的 3664209a…e255 不同（同一
+  标签下资产被替换过，或当时记录的是另一资产）；CI 固定当前值，macOS arm64 资产为 850ee331…0253。
+

@@ -20,7 +20,9 @@ Release coordinate: `com.netonstream:http3:0.2.0`, built against `com.netonstrea
 - h3spec 0.1.13: 49 / 49, including the five items the reference skips.
 - ⚖️ GOAWAY rejects stream IDs greater than or equal to the GOAWAY ID (RFC 9114 §5.2; the reference uses `>`); the
   connection's one GREASE frame on a request stream follows the first head instead of preceding FIN (aioquic needs it).
-- Not in v1: 0-RTT, server push, WebTransport, HTTP Datagrams, dynamic QPACK.
+- ⚖️ A server-side time limit for the request head (`Builder.requestHeaderTimeout`, default 10 s, 0 = none): a request
+  stream whose HEADERS frame has not arrived in time is rejected both ways with H3_REQUEST_REJECTED.
+- Not supported: server push, WebTransport, HTTP Datagrams, dynamic QPACK.
 - Not yet: quiche / curl `--http3` interop, loss and reordering runs over real TLS, performance comparison.
 
 ## Usage

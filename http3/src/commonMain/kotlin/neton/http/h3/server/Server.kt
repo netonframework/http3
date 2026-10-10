@@ -80,6 +80,18 @@ class Builder internal constructor() {
     /** Whether to send GREASE (default true). */
     fun sendGrease(value: Boolean) = apply { config.sendGrease = value }
 
+    /**
+     * ⚖️ The request head (its HEADERS frame) must arrive within [millis] of the request stream being accepted
+     * (default 10 s; 0: no limit, as the reference): a peer that opens request streams and sends their heads slowly
+     * otherwise holds them until the QUIC idle timeout, which any packet resets. Past the limit [RequestResolver.resolveRequest]
+     * rejects the stream both ways with H3_REQUEST_REJECTED (RFC 9114 §8.1: not processed, safe to retry) and throws
+     * [StreamError.Stream]; the connection and other requests carry on.
+     */
+    fun requestHeaderTimeout(millis: Long) = apply {
+        require(millis >= 0)
+        config.requestHeaderTimeoutMillis = millis
+    }
+
     /** Test hook (the reference's `send_settings`): false leaves the control and QPACK streams unwritten. */
     internal fun sendSettings(value: Boolean) = apply { config.sendSettings = value }
 
@@ -264,6 +276,9 @@ class RequestResolver internal constructor(private val inner: RequestStreamInner
     AutoCloseable {
     private var used = false
 
+    /** When the request stream was accepted: [Config.requestHeaderTimeoutMillis] counts from here. */
+    private val acceptedAt = kotlin.time.TimeSource.Monotonic.markNow()
+
     /** The request stream ID. */
     val id: StreamId get() = inner.id
 
@@ -301,7 +316,7 @@ class RequestResolver internal constructor(private val inner: RequestStreamInner
     private suspend fun resolve(): Pair<Request<Unit>, RequestStream> {
         val shared = inner.shared
         val frame = try {
-            inner.nextFrame()
+            nextFrameWithinLimit()
         } catch (e: FrameException) {
             (inner.headerTooBig(e) as? StreamError.HeaderTooBig)?.let { reject431(it) }
             throw shared.connectionErrorOnStream(InternalConnectionError.of(e))
@@ -344,6 +359,21 @@ class RequestResolver internal constructor(private val inner: RequestStreamInner
     private fun malformed(reason: String?): StreamError = inner.malformed("request: ${reason ?: "invalid header section"}")
 
     /** Answers a head over a limit with 431 and ends the stream as described in [resolveRequest]. */
+    /** The first frame, within what is left of [Config.requestHeaderTimeoutMillis]. */
+    private suspend fun nextFrameWithinLimit(): Frame? {
+        val limit = inner.config.requestHeaderTimeoutMillis
+        if (limit == 0L) return inner.nextFrame()
+        val left = limit - acceptedAt.elapsedNow().inWholeMilliseconds
+        val frame = if (left > 0) kotlinx.coroutines.withTimeoutOrNull(left) { Optional(inner.nextFrame()) } else null
+        if (frame != null) return frame.value
+        inner.stopStream(Code.H3_REQUEST_REJECTED)
+        inner.stopSending(Code.H3_REQUEST_REJECTED)
+        throw StreamError.Stream(Code.H3_REQUEST_REJECTED, "request head not received within $limit ms")
+    }
+
+    /** Tells a null frame (the stream ended) from no frame in time. */
+    private class Optional(val value: Frame?)
+
     private suspend fun reject431(error: StreamError.HeaderTooBig): Nothing {
         try {
             inner.sendHeaders(Header.response(StatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, HeaderMap.new()), grease = false)
