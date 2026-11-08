@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macOS kqueue, os: macos-14, task: macosArm64Test, driver: "" }
+          - { name: macOS kqueue, os: macos-15, task: macosArm64Test, driver: "" }
           - { name: Linux epoll, os: ubuntu-latest, task: linuxX64Test, driver: epoll }
           - { name: Windows IOCP, os: windows-latest, task: mingwX64Test, driver: "" }
           - { name: Windows WSAPoll, os: windows-latest, task: mingwX64Test, driver: wsapoll }
@@ -23,6 +23,9 @@ jobs:
     env:
       NETON_IO_DRIVER: ${{ matrix.driver }}
     steps:
+      - name: Select supported Xcode
+        if: runner.os == 'macOS'
+        run: echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -72,12 +75,15 @@ jobs:
         include:
           - { name: Linux epoll, os: ubuntu-latest, target: LinuxX64, driver: epoll, asset: h3spec-linux-x86_64, sha256: b5f8eddd968cb195d1e3e7698d33fa141d6b2ad56153089d89928ac0fdee28bf }
           - { name: Linux io_uring, os: ubuntu-latest, target: LinuxX64, driver: iouring, asset: h3spec-linux-x86_64, sha256: b5f8eddd968cb195d1e3e7698d33fa141d6b2ad56153089d89928ac0fdee28bf }
-          - { name: macOS kqueue, os: macos-14, target: MacosArm64, driver: "", asset: h3spec-mac-arm64, sha256: 850ee3317b767db1e5e41cf3b9f034a74feabf52672744920ba41f330b710253 }
+          - { name: macOS kqueue, os: macos-15, target: MacosArm64, driver: "", asset: h3spec-mac-arm64, sha256: 850ee3317b767db1e5e41cf3b9f034a74feabf52672744920ba41f330b710253 }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
       NETON_IO_DRIVER: ${{ matrix.driver }}
     steps:
+      - name: Select supported Xcode
+        if: runner.os == 'macOS'
+        run: echo "DEVELOPER_DIR=/Applications/Xcode_16.4.app/Contents/Developer" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -114,4 +120,62 @@ jobs:
             http3-interop/logs/**
             http3-interop/summary.txt
           if-no-files-found: ignore
+
+  build-arm64-tests:
+    name: cross-build Linux ARM64 tests
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Link test executables
+        run: ./gradlew --no-daemon :http3:linkDebugTestLinuxArm64 --console=plain
+      - name: Package exact binaries
+        run: |
+          mkdir arm64-tests
+          cp http3/build/bin/linuxArm64/debugTest/test.kexe arm64-tests/http3.kexe
+          cd arm64-tests
+          shasum -a 256 *.kexe > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-tests
+          path: arm64-tests/
+          if-no-files-found: error
+
+  test-arm64:
+    name: test (Linux ARM64 epoll)
+    needs: build-arm64-tests
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    env:
+      NETON_IO_DRIVER: epoll
+      NETON_QUIC_TEST_TLS: real
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-arm64-tests
+          path: arm64-tests
+      - name: Verify and run native tests
+        working-directory: arm64-tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = aarch64
+          sha256sum -c SHA256SUMS
+          chmod +x *.kexe
+          for binary in *.kexe; do
+            "./$binary" --ktest_logger=SIMPLE 2>&1 | tee "$binary.log"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-arm64-runtime-results
+          path: arm64-tests/*.log
+          if-no-files-found: error
 
